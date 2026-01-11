@@ -315,7 +315,7 @@ async def main():
     print("🤖 TELEGRAM AUTO-RESPONDER")
     print("="*50)
     
-    if not GROQ_API_KEY:
+    if not GROQ_API_KEYS:
         print("❌ GROQ_API_KEY topilmadi!")
         return
     
