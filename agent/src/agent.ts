@@ -1,10 +1,13 @@
-/**
- * AI Agent for Telegram
- * Uses Claude Sonnet 4.5 via Vercel AI Gateway with tools
- */
+// =================================================================
+// AGENT.TS FAYLINING TO'LIQ YANGI KODI (YAKUNIY VERSIYA 2.0)
+// =================================================================
 
-import { streamText, stepCountIs } from "ai";
-import { gateway } from "@ai-sdk/gateway";
+import {
+  StreamData,
+  // StreamingTextResponse, // <<< BU QATORNI BUTUNLAY O'CHIRIB TASHLADIK
+  Tool,
+  CoreMessage,
+} from "ai";
 import pc from "picocolors";
 import { config } from "./config";
 import { telegramTools } from "./tools/telegram";
@@ -12,7 +15,7 @@ import { niaTools } from "./tools/nia";
 import { aiifyTools } from "./tools/aiify";
 
 // Combine all tools
-export const tools = {
+export const tools: Record<string, Tool> = {
   ...telegramTools,
   ...niaTools,
   ...aiifyTools,
@@ -56,77 +59,99 @@ export const SYSTEM_PROMPT = `You are a charming AI assistant helping a guy comm
 - IMPORTANT: All suggested messages to send should be lowercase, never uppercase. Type like a normal person texting, not formal.`;
 
 // Message history for the conversation
-let messageHistory: Array<{ role: "user" | "assistant"; content: string }> = [];
+let messageHistory: CoreMessage[] = [];
+
+// --- GROQ API BILAN ISHLASH ---
+// Groq API - tez va bepul, OpenAI formatida ishlaydi
+async function* streamGroq(
+  options: {
+    system?: string;
+    messages: CoreMessage[];
+  }
+): AsyncGenerator<string, void, unknown> {
+  const GROQ_API_KEY = process.env.GROQ_API_KEY;
+
+  if (!GROQ_API_KEY) {
+    throw new Error("GROQ_API_KEY environment variable is not set!");
+  }
+
+  const MODEL_NAME = "llama-3.3-70b-versatile";
+  const url = "https://api.groq.com/openai/v1/chat/completions";
+
+  const messages = [
+    { role: "system", content: options.system || "" },
+    ...options.messages.map(msg => ({
+      role: msg.role,
+      content: msg.content as string,
+    })),
+  ];
+
+  const body = {
+    model: MODEL_NAME,
+    messages: messages,
+    stream: true,
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${GROQ_API_KEY}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok || !response.body) {
+    const errorText = await response.text();
+    throw new Error(`Groq API Error: ${response.status} ${errorText}`);
+  }
+
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    const lines = value.split("\n");
+    for (const line of lines) {
+      if (line.startsWith("data: ") && !line.includes("[DONE]")) {
+        try {
+          const json = JSON.parse(line.substring(6));
+          const text = json.choices?.[0]?.delta?.content || "";
+          if (text) {
+            yield text;
+          }
+        } catch (e) {
+          // ignore parse errors
+        }
+      }
+    }
+  }
+}
+
 
 /**
  * Process a user message and stream the response
  */
 export async function chat(userMessage: string): Promise<AsyncIterable<string>> {
-  // Add user message to history
   messageHistory.push({
     role: "user",
     content: userMessage,
   });
 
-  // Create the streaming response using AI Gateway with Claude Sonnet 4.5
-  const result = streamText({
-    model: gateway(config.model),
+  // Groq API funksiyasini chaqiramiz
+  const stream = streamGroq({
     system: SYSTEM_PROMPT,
     messages: messageHistory,
-    tools,
-    stopWhen: stepCountIs(10), // Allow up to 10 multi-step tool calls
-    onStepFinish: ({ toolCalls, toolResults }) => {
-      // Log tool usage with clean formatting
-      if (toolCalls && toolCalls.length > 0) {
-        for (const call of toolCalls) {
-          const argsObj = ('args' in call ? call.args : {}) as Record<string, unknown>;
-          const argPreview = Object.entries(argsObj)
-            .slice(0, 2)
-            .map(([k, v]) => typeof v === 'string' ? v.slice(0, 30) : JSON.stringify(v))
-            .join(', ');
-          console.log(`  ${pc.dim('→')} ${pc.yellow(call.toolName)} ${pc.dim(`(${argPreview})`)}`);
-        }
-      }
-      // Log tool results - clean summary only
-      if (toolResults && toolResults.length > 0) {
-        for (const res of toolResults) {
-          const result = ('result' in res ? res.result : res) as Record<string, unknown>;
-          let summary = '';
-          if (result && typeof result === 'object') {
-            if ('results' in result && Array.isArray(result.results)) {
-              summary = `${result.results.length} results`;
-            } else if ('chats' in result && Array.isArray(result.chats)) {
-              summary = `${result.chats.length} chats`;
-            } else if ('messages' in result && Array.isArray(result.messages)) {
-              summary = `${result.messages.length} messages`;
-            } else if ('contacts' in result && Array.isArray(result.contacts)) {
-              summary = `${result.contacts.length} contacts`;
-            } else if ('success' in result) {
-              summary = result.success ? 'done' : 'failed';
-            } else if ('error' in result) {
-              summary = `error: ${result.error}`;
-            } else if ('status' in result) {
-              summary = `status: ${result.status}`;
-            }
-          }
-          if (summary) {
-            console.log(`  ${pc.green('✓')} ${pc.dim(summary)}`);
-          }
-        }
-      }
-    },
   });
 
-  // Return an async generator that yields text chunks
   return (async function* () {
     let fullResponse = "";
-
-    for await (const chunk of result.textStream) {
+    for await (const chunk of stream) {
       fullResponse += chunk;
       yield chunk;
     }
-
-    // Add assistant response to history
     messageHistory.push({
       role: "assistant",
       content: fullResponse,
