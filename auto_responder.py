@@ -106,6 +106,7 @@ chat_histories = {}
 # Bot control variables
 bot_paused = False
 ignored_users = set()  # Set of user IDs to ignore
+owner_id: Optional[int] = None  # Cached owner (session account) ID
 
 # Create client
 if SESSION_STRING:
@@ -114,24 +115,29 @@ else:
     client = TelegramClient(TELEGRAM_SESSION_NAME, TELEGRAM_API_ID, TELEGRAM_API_HASH)
 
 
-# Command handler - only responds to YOUR commands (outgoing messages)
-@client.on(events.NewMessage(outgoing=True, pattern=r'^/'))
+# Command handler - accepts messages from any direction, but only acts for the owner
+@client.on(events.NewMessage(pattern=r'^/'))
 async def handle_commands(event):
-    """Handle bot control commands"""
+    """Handle bot control commands (owner only)"""
     global bot_paused, ignored_users
-    
+
+    # Security: only the session owner may run commands
+    if owner_id is None or event.sender_id != owner_id:
+        return
+
     command = event.text.lower().split()[0]
     args = event.text.split()[1:] if len(event.text.split()) > 1 else []
-    
+    chat_info = f"chat_id={event.chat_id}"
+
     if command == "/pause":
         bot_paused = True
         await event.edit("⏸️ Bot to'xtatildi")
-        print("⏸️ Bot PAUSED")
-        
+        print(f"⏸️ Bot PAUSED [{chat_info}]")
+
     elif command == "/resume" or command == "/start":
         bot_paused = False
         await event.edit("▶️ Bot ishga tushdi")
-        print("▶️ Bot RESUMED")
+        print(f"▶️ Bot RESUMED [{chat_info}]")
         
     elif command == "/status":
         status = "⏸️ To'xtatilgan" if bot_paused else "✅ Ishlayapti"
@@ -267,9 +273,10 @@ async def handle_new_message(event):
         print(f"🚫 Ignored message from {event.sender_id}")
         return
     
-    # Get my user ID
-    me = await client.get_me()
-    my_id = me.id
+    # Get my user ID (use cached value)
+    my_id = owner_id
+    if my_id is None:
+        return
     
     # For groups: only respond if someone replies to MY message
     if event.is_group:
@@ -316,6 +323,7 @@ async def handle_new_message(event):
 
 async def main():
     """Main function"""
+    global owner_id
     print("\n" + "="*50)
     print("🤖 TELEGRAM AUTO-RESPONDER")
     print("="*50)
@@ -325,8 +333,9 @@ async def main():
         return
     
     await client.start()
-    
+
     me = await client.get_me()
+    owner_id = me.id
     print(f"✅ {me.first_name} sifatida ulandi")
     print("📱 Shaxsiy xabarlarga avtomatik javob beriladi...")
     print("🛑 To'xtatish uchun Ctrl+C bosing")
