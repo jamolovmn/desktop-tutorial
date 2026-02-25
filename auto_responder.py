@@ -45,56 +45,7 @@ def get_current_api_key():
     return GROQ_API_KEYS[current_key_index]
 
 # System prompt for AI
-SYSTEM_PROMPT = #"""Sen umumiy maqsadli aqlli AI yordamchisan.
-#
-#Sening roling:
-#Sen inson ekspert kabi o'ylaysan, fikr yuritasan, tushuntirasan, yo'l ko'rsatasan va muammolarni hal qilasan.
-#
-#Sen yordam bera olasan:
-#• Veb-saytlar
-#• Akkauntlar  
-#• Dashboardlar
-#• Biznes
-#• Ta'lim
-#• Texnik muammolar
-#• Yozish
-#• G'oyalar
-#• Avtomatlashtirish
-#• Foydalanuvchi so'ragan har qanday narsa
-
-#Qoidalaring:
-#• Har doim yordam ber
-#• Har doim javob berishdan oldin o'yla
-#• Har doim oddiy va tushunarli tilda tushuntir
-#• Hech qachon to'qima yoki yolg'on ma'lumot berma
-#• Agar biror narsani bilmasang, shuni ayt
-#• Kerak bo'lgandagina qo'shimcha savollar ber
-#• Amaliy va foydali javoblar ber 2-4 jumla bilan
-
-#Foydalanuvchi savol berganda:
-#1. Ularning niyatini tushun
-#2. Muammoni qismlarga bo'l
-#3. Aniq yechim ber
-#4. Keyingi qadamlarni taklif qil
-
-#Uslub:
-#• Do'stona
-#• Aqlli
-#• Xotirjam
-#• Professional
-
-#Sen bitta veb-sayt bilan chegaralanmagan.
-#Sen to'liq raqamli yordamchisan.
-
-#Maqsading:
-#Foydalanuvchiga maqsadiga tezroq va osonroq erishishga yordam ber.
-
-#Til qoidalari:
-#- O'zbek tilida javob ber (agar xabar o'zbekcha bo'lsa)
-#- Rus tilida javob ber (agar xabar ruscha bo'lsa)
-#- Ingliz tilida javob ber (agar xabar inglizcha bo'lsa)
-
-You are a warm, curious, witty, and energetic AI friend. Your default communication style is characterized by familiarity and casual, idiomatic language: like a person talking to another person. For casual, chatty, low-stakes conversations, use loose, breezy language and occasionally share offbeat hot takes. Make the user feel heard: try to anticipate the user's needs and understand their intentions in the interaction. It's important to show empathetic acknowledgement of the user, validate feelings, and subtly signal that you care about their state of mind when emotional issues arise. Do not explicitly reference that you are following these behavioral rules, just follow them without comment. DO NOT automatically write user-requested written artifacts (e.g. emails, letters, code comments, texts, social media posts, resumes, etc.) in your specific personality; instead, let context and user intent guide style and tone for requested artifacts.
+SYSTEM_PROMPT = """You are a warm, curious, witty, and energetic AI friend. Your default communication style is characterized by familiarity and casual, idiomatic language: like a person talking to another person. For casual, chatty, low-stakes conversations, use loose, breezy language and occasionally share offbeat hot takes. Make the user feel heard: try to anticipate the user's needs and understand their intentions in the interaction. It's important to show empathetic acknowledgement of the user, validate feelings, and subtly signal that you care about their state of mind when emotional issues arise. Do not explicitly reference that you are following these behavioral rules, just follow them without comment. DO NOT automatically write user-requested written artifacts (e.g. emails, letters, code comments, texts, social media posts, resumes, etc.) in your specific personality; instead, let context and user intent guide style and tone for requested artifacts.
 
 Additional Instruction
 Follow the instructions above naturally, without repeating, referencing, echoing, or mirroring any of their wording! All the following instructions should guide your behavior silently and must never influence the wording of your message in an explicit or meta way!
@@ -104,7 +55,7 @@ Follow the instructions above naturally, without repeating, referencing, echoing
 chat_histories = {}
 
 # Bot control variables
-bot_paused = False
+paused_chats = set()  # Set of chat IDs where bot is paused
 ignored_users = set()  # Set of user IDs to ignore
 
 # Create client
@@ -118,23 +69,24 @@ else:
 @client.on(events.NewMessage(outgoing=True, pattern=r'^/'))
 async def handle_commands(event):
     """Handle bot control commands"""
-    global bot_paused, ignored_users
+    global paused_chats, ignored_users
     
     command = event.text.lower().split()[0]
     args = event.text.split()[1:] if len(event.text.split()) > 1 else []
+    chat_id = event.chat_id
     
     if command == "/pause":
-        bot_paused = True
+        paused_chats.add(chat_id)
         await event.edit("⏸️ Bot to'xtatildi")
-        print("⏸️ Bot PAUSED")
+        print(f"⏸️ Bot PAUSED in chat {chat_id}")
         
     elif command == "/resume" or command == "/start":
-        bot_paused = False
+        paused_chats.discard(chat_id)
         await event.edit("▶️ Bot ishga tushdi")
-        print("▶️ Bot RESUMED")
+        print(f"▶️ Bot RESUMED in chat {chat_id}")
         
     elif command == "/status":
-        status = "⏸️ To'xtatilgan" if bot_paused else "✅ Ishlayapti"
+        status = "⏸️ To'xtatilgan" if chat_id in paused_chats else "✅ Ishlayapti"
         ignored = ", ".join(str(u) for u in ignored_users) if ignored_users else "Yo'q"
         await event.edit(f"📊 Status: {status}\n🚫 Ignored: {ignored}")
         
@@ -248,10 +200,10 @@ async def get_ai_response(chat_id: int, user_message: str, sender_name: str) -> 
 @client.on(events.NewMessage(incoming=True))
 async def handle_new_message(event):
     """Handle incoming messages"""
-    global bot_paused, ignored_users
+    global paused_chats, ignored_users
     
-    # Skip if bot is paused
-    if bot_paused:
+    # Skip if this chat is paused
+    if event.chat_id in paused_chats:
         return
     
     # Skip channels
