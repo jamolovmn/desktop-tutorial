@@ -4,6 +4,7 @@ Automatically responds to incoming Telegram messages using AI
 """
 
 import os
+import sys
 import asyncio
 from datetime import datetime
 from typing import Optional
@@ -307,8 +308,39 @@ async def handle_new_message(event):
         print("⚠️ Javob olinmadi")
 
 
+LOCK_FILE = "/tmp/auto_responder.pid"
+
+
+def acquire_lock():
+    """Ensure only one instance runs at a time using a PID file."""
+    if os.path.exists(LOCK_FILE):
+        try:
+            with open(LOCK_FILE, "r") as f:
+                old_pid = int(f.read().strip())
+            # Check if the process with that PID is still running
+            os.kill(old_pid, 0)
+            print(f"❌ auto_responder.py allaqachon PID {old_pid} bilan ishlayapti.")
+            print("   Faqat bitta nusxa ishlashi kerak. Avvalgi nusxani to'xtating:")
+            print(f"   kill {old_pid}")
+            sys.exit(1)
+        except (ProcessLookupError, PermissionError, ValueError):
+            # Stale lock file — remove it
+            os.remove(LOCK_FILE)
+    with open(LOCK_FILE, "w") as f:
+        f.write(str(os.getpid()))
+
+
+def release_lock():
+    """Remove the PID lock file."""
+    try:
+        os.remove(LOCK_FILE)
+    except FileNotFoundError:
+        pass
+
+
 async def main():
     """Main function"""
+    acquire_lock()
     print("\n" + "="*50)
     print("🤖 TELEGRAM AUTO-RESPONDER")
     print("="*50)
@@ -334,3 +366,5 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\n👋 Auto-responder to'xtatildi")
+    finally:
+        release_lock()
