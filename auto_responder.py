@@ -201,8 +201,8 @@ async def get_ai_response(chat_id: int, user_message: str, sender_name: str) -> 
                     json={
                         "model": "llama-3.3-70b-versatile",
                         "messages": messages,
-                        "max_tokens": 40,
-                        "temperature": 0.2
+                        "max_tokens": 25,
+                        "temperature": 0
                     }
                 )
                 
