@@ -1,40 +1,27 @@
-# Telegram AI Dating Agent
+# Telegram MCP Server
 
-An AI-powered Telegram agent that helps you craft witty, engaging messages for your conversations. Built with Claude Sonnet, [Nia](https://trynia.ai) semantic search, and a full-featured Telegram MCP integration.
+A full-featured Telegram integration for Claude, Cursor, and other MCP-compatible clients. Uses [Telethon](https://github.com/LonamiWebs/Telethon) for Telegram API access and exposes 60+ tools via the [Model Context Protocol](https://modelcontextprotocol.io/).
 
-## What It Does
+## Features
 
-- **Smart Reply Suggestions**: Get AI-powered response suggestions based on conversation context
-- **500+ Pickup Lines**: Semantic search through a curated collection of pickup lines indexed with Nia
-- **Dating Guides**: Search through guides on how to talk to women, conversation starters, and flirting tips
-- **Message Enhancement**: Transform boring messages into witty, engaging ones
-- **Full Telegram Access**: Read messages, send replies, manage chats - all through natural language
-
-## Powered by Nia
-
-This agent uses [Nia](https://trynia.ai) as its knowledge retrieval engine. Nia indexes and searches through:
-- 500+ curated pickup lines (funny, cheesy, clever, romantic)
-- Guides on conversation techniques
-- Tips for keeping conversations engaging
-
-You can index your own content by creating a source at [trynia.ai](https://trynia.ai).
+- **60+ Telegram Tools**: Messaging, contacts, groups, channels, reactions, media, and more
+- **Flexible ID Support**: Accept integer IDs, string IDs, or `@username` formats
+- **Session Options**: Supports both string-based and file-based Telegram sessions
+- **MCP Compatible**: Works with Claude Desktop, Cursor, and any MCP client
+- **TypeScript Agent**: Optional CLI agent powered by Claude Sonnet
 
 ## Architecture
 
 ```
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│   MCP Client     │────▶│   MCP Server     │────▶│    Telegram      │
+│ (Claude/Cursor)  │     │   (main.py)      │     │    Servers       │
+└──────────────────┘     └──────────────────┘     └──────────────────┘
+
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
 │   CLI Agent      │────▶│  Telegram API    │────▶│    Telegram      │
 │  (TypeScript)    │     │   Bridge (Py)    │     │    Servers       │
 └──────────────────┘     └──────────────────┘     └──────────────────┘
-         │
-         ▼
-┌──────────────────┐     ┌──────────────────┐
-│  Claude Sonnet   │     │    Nia API       │
-│   (AI Gateway)   │     │ (trynia.ai)      │
-└──────────────────┘     └──────────────────┘
-                         - 500+ pickup lines
-                         - Dating guides
-                         - Conversation tips
 ```
 
 ## Quick Start
@@ -47,8 +34,8 @@ Get your API credentials at [my.telegram.org/apps](https://my.telegram.org/apps)
 
 ```bash
 # Clone the repo
-git clone https://github.com/arlanrakh/talk-to-girlfriend-ai.git
-cd talk-to-girlfriend-ai
+git clone https://github.com/jamolovmn/desktop-tutorial.git
+cd telegram-mcp
 
 # Install Python dependencies
 uv sync
@@ -61,62 +48,26 @@ cp .env.example .env
 # Edit .env with your credentials
 ```
 
-### 3. Start the Telegram API Bridge
+### 3. Use as MCP Server (Recommended)
+
+Add to your MCP config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "telegram": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/desktop-tutorial", "run", "main.py"]
+    }
+  }
+}
+```
+
+Or run directly:
 
 ```bash
-python telegram_api.py
+uv run main.py
 ```
-
-This runs a FastAPI server on port 8765 that bridges the TypeScript agent to Telegram.
-
-### 4. Run the AI Agent
-
-```bash
-cd agent
-bun install
-bun run dev
-```
-
-## Usage Examples
-
-Once running, interact with natural language:
-
-```
-# Reading & Sending
-> Show me messages from @her_username
-> Send "Hey, I was just thinking about you" to @her_username
-> Reply to her last message with something witty
-
-# Reactions
-> React to her last message with ❤️
-> Send a 🔥 reaction to message 123
-
-# Search & History
-> Search our chat for "dinner plans"
-> Show me the last 50 messages with her
-> Find me a funny pickup line about pizza
-
-# AI Assistance
-> What should I reply to her message about coffee?
-> Make this message more flirty: "want to hang out tomorrow?"
-> Search for tips on how to keep a conversation going
-
-# User Info
-> Is she online right now?
-> Check her status
-
-# Message Management
-> Edit my last message to fix the typo
-> Delete message 456
-> Forward that meme to @friend
-```
-
-### Agent Commands
-
-- `/help` - Show help
-- `/clear` - Clear conversation history
-- `/status` - Check connection status
-- `/quit` - Exit
 
 ## Environment Variables
 
@@ -126,108 +77,98 @@ Create a `.env` file in the project root:
 # Telegram API (Required)
 TELEGRAM_API_ID=your_api_id
 TELEGRAM_API_HASH=your_api_hash
-TELEGRAM_SESSION_STRING=your_session_string
 
-# AI Services (Required for agent)
+# Session (choose one)
+TELEGRAM_SESSION_STRING=your_session_string   # preferred
+TELEGRAM_SESSION_NAME=your_session_name       # file-based alternative
+```
+
+For the TypeScript agent, also add:
+
+```env
 AI_GATEWAY_API_KEY=your_vercel_ai_gateway_key
 NIA_API_KEY=your_nia_api_key
-NIA_CODEBASE_SOURCE=your_pickup_lines_source_uuid
+TELEGRAM_API_URL=http://localhost:8765
 ```
 
-## Alternative: Use as MCP Server
+## Available MCP Tools (60+)
 
-You can also use this as a standalone MCP server with Claude Desktop or Cursor, without the AI agent.
-
-Add to your MCP config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "telegram": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/telegram-mcp", "run", "main.py"]
-    }
-  }
-}
-```
-
-This exposes 60+ Telegram tools including messaging, contacts, groups, channels, reactions, and more.
-
-## Available Tools
-
-### Agent Tools (20+)
-
-**Core Messaging**
+**Messaging**
 | Tool | Description |
 |------|-------------|
-| `getChats` | List all conversations |
-| `getMessages` | Read messages from a chat |
-| `sendMessage` | Send a message |
-| `getChat` | Get chat details |
-| `searchContacts` | Search contacts |
+| `send_message` | Send a message to a chat |
+| `reply_to_message` | Reply to a specific message |
+| `edit_message` | Edit a sent message |
+| `delete_message` | Delete a message |
+| `forward_message` | Forward a message to another chat |
+| `pin_message` | Pin a message in a chat |
+| `send_reaction` | React to a message with an emoji |
 
-**Reactions & Replies**
+**Chats & Channels**
 | Tool | Description |
 |------|-------------|
-| `sendReaction` | React with ❤️ 🔥 😂 etc |
-| `replyToMessage` | Reply to specific messages |
+| `get_chats` | List all conversations |
+| `get_messages` | Read messages from a chat |
+| `search_messages` | Search messages by text |
+| `get_history` | Get message history (up to 500) |
+| `mark_as_read` | Mark messages as read |
 
-**Edit & Delete**
+**Contacts**
 | Tool | Description |
 |------|-------------|
-| `editMessage` | Fix typos after sending |
-| `deleteMessage` | Remove messages |
+| `search_contacts` | Search your contacts |
+| `get_user_status` | Check if a user is online |
+| `get_user_photos` | Get a user's profile photos |
 
-**History & Search**
+**Group & Channel Management**
 | Tool | Description |
 |------|-------------|
-| `getHistory` | Get up to 500 messages |
-| `searchMessages` | Search chat by text |
-
-**Forward & Pin**
-| Tool | Description |
-|------|-------------|
-| `forwardMessage` | Forward to another chat |
-| `pinMessage` | Pin important messages |
-| `markAsRead` | Mark messages as read |
-
-**User Info**
-| Tool | Description |
-|------|-------------|
-| `getUserStatus` | Check if user is online |
-| `getUserPhotos` | Get profile photos |
+| `create_group` | Create a new group |
+| `invite_to_group` | Invite users to a group |
+| `set_admin` | Grant admin rights |
+| `ban_user` | Ban a user from a group |
 
 **Media**
 | Tool | Description |
 |------|-------------|
-| `searchGifs` | Search for GIFs |
+| `send_file` | Send a file or media |
+| `download_media` | Download media from a message |
+| `search_gifs` | Search for GIFs |
 
-**Nia Search**
-| Tool | Description |
-|------|-------------|
-| `searchPickupLines` | Search indexed pickup lines & dating advice |
-| `niaSearch` | General semantic search |
-| `webSearch` | Real-time web search |
+Full list of tools available in `main.py`.
 
-**AI Tools**
-| Tool | Description |
-|------|-------------|
-| `aiifyMessage` | Transform messages into witty responses |
+## Optional: TypeScript CLI Agent
 
-### MCP Server Tools (60+)
-Full Telegram API access including:
-- Chat & Group Management (create, invite, admin, ban)
-- Messaging (send, reply, edit, delete, forward, pin, reactions)
-- Contact Management (add, search, block, import/export)
-- Media & Stickers
-- Privacy Settings
-- And much more...
+A CLI agent using Claude Sonnet is available in the `agent/` directory. It communicates with Telegram via an HTTP bridge.
+
+```bash
+# Start the API bridge
+python telegram_api.py
+
+# In a new terminal, run the agent
+cd agent
+bun install
+bun run dev
+```
 
 ## Docker
 
 ```bash
 docker build -t telegram-mcp:latest .
 docker compose up --build
+```
+
+## Development
+
+```bash
+# Format code
+black .
+
+# Lint code
+flake8 .
+
+# Run tests
+pytest test_validation.py -v
 ```
 
 ## Troubleshooting
@@ -239,17 +180,10 @@ docker compose up --build
 
 ## Security
 
-- Never commit your `.env` or session string
-- Session string = full Telegram account access
-- All processing is local, data only goes to Telegram API
-
-## Credits
-
-- Built on [telegram-mcp](https://github.com/chigwell/telegram-mcp) by [@chigwell](https://github.com/chigwell)
-- Knowledge retrieval powered by [Nia](https://trynia.ai)
-- Uses [Telethon](https://github.com/LonamiWebs/Telethon), [MCP](https://modelcontextprotocol.io/), and [Vercel AI SDK](https://sdk.vercel.ai/)
+- Never commit your `.env` file or session string
+- A session string grants full access to your Telegram account — keep it safe
+- All processing is local; data only goes to Telegram's API servers
 
 ## License
 
 [Apache 2.0](LICENSE)
-# talk-to-girlfriend-ai
